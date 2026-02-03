@@ -1,13 +1,23 @@
-import { createClient } from '@libsql/client';
+import { createClient, Client } from '@libsql/client';
 
-const client = createClient({
-  url: process.env.TURSO_DATABASE_URL!,
-  authToken: process.env.TURSO_AUTH_TOKEN,
-});
+// Lazy-load client to avoid build-time errors
+let client: Client | null = null;
+
+function getClient(): Client {
+  if (!client) {
+    client = createClient({
+      url: process.env.TURSO_DATABASE_URL!,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    });
+  }
+  return client;
+}
 
 // Initialize database tables
 async function initDb() {
-  await client.execute(`
+  const db = getClient();
+
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS quarterbacks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -18,7 +28,7 @@ async function initDb() {
     )
   `);
 
-  await client.execute(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS votes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       qb_id INTEGER NOT NULL,
@@ -28,7 +38,7 @@ async function initDb() {
     )
   `);
 
-  await client.execute(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS trust_snapshots (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       qb_id INTEGER NOT NULL,
@@ -39,10 +49,10 @@ async function initDb() {
     )
   `);
 
-  await client.execute(`CREATE INDEX IF NOT EXISTS idx_votes_qb_id ON votes(qb_id)`);
-  await client.execute(`CREATE INDEX IF NOT EXISTS idx_votes_created_at ON votes(created_at)`);
-  await client.execute(`CREATE INDEX IF NOT EXISTS idx_snapshots_qb_id ON trust_snapshots(qb_id)`);
-  await client.execute(`CREATE INDEX IF NOT EXISTS idx_snapshots_date ON trust_snapshots(snapshot_date)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_votes_qb_id ON votes(qb_id)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_votes_created_at ON votes(created_at)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_snapshots_qb_id ON trust_snapshots(qb_id)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_snapshots_date ON trust_snapshots(snapshot_date)`);
 }
 
 // Track initialization
@@ -81,14 +91,14 @@ export interface TrustSnapshot {
 // Get all quarterbacks
 export async function getAllQuarterbacks(): Promise<Quarterback[]> {
   await ensureInitialized();
-  const result = await client.execute('SELECT * FROM quarterbacks ORDER BY name');
+  const result = await getClient().execute('SELECT * FROM quarterbacks ORDER BY name');
   return result.rows as unknown as Quarterback[];
 }
 
 // Get quarterback by ID
 export async function getQuarterbackById(id: number): Promise<Quarterback | undefined> {
   await ensureInitialized();
-  const result = await client.execute({
+  const result = await getClient().execute({
     sql: 'SELECT * FROM quarterbacks WHERE id = ?',
     args: [id],
   });
@@ -98,12 +108,13 @@ export async function getQuarterbackById(id: number): Promise<Quarterback | unde
 // Record a vote and update trust score
 export async function recordVote(qbId: number, direction: 'more' | 'less'): Promise<Quarterback | null> {
   await ensureInitialized();
+  const db = getClient();
 
   const qb = await getQuarterbackById(qbId);
   if (!qb) return null;
 
   // Insert vote
-  await client.execute({
+  await db.execute({
     sql: 'INSERT INTO votes (qb_id, direction) VALUES (?, ?)',
     args: [qbId, direction],
   });
@@ -120,14 +131,14 @@ export async function recordVote(qbId: number, direction: 'more' | 'less'): Prom
 
   const newScore = Math.max(0, Math.min(100, qb.trust_score + (change * multiplier)));
 
-  await client.execute({
+  await db.execute({
     sql: 'UPDATE quarterbacks SET trust_score = ? WHERE id = ?',
     args: [newScore, qbId],
   });
 
   // Record snapshot for today (upsert)
   const today = new Date().toISOString().split('T')[0];
-  await client.execute({
+  await db.execute({
     sql: `INSERT INTO trust_snapshots (qb_id, score, snapshot_date)
           VALUES (?, ?, ?)
           ON CONFLICT(qb_id, snapshot_date) DO UPDATE SET score = excluded.score`,
@@ -140,7 +151,7 @@ export async function recordVote(qbId: number, direction: 'more' | 'less'): Prom
 // Get trust history for a quarterback
 export async function getTrustHistory(qbId: number, days: number = 30): Promise<TrustSnapshot[]> {
   await ensureInitialized();
-  const result = await client.execute({
+  const result = await getClient().execute({
     sql: `SELECT * FROM trust_snapshots
           WHERE qb_id = ?
           ORDER BY snapshot_date DESC
@@ -153,9 +164,10 @@ export async function getTrustHistory(qbId: number, days: number = 30): Promise<
 // Seed initial data
 export async function seedQuarterbacks(qbs: { name: string; team: string; espn_id: string }[]) {
   await ensureInitialized();
+  const db = getClient();
 
   for (const qb of qbs) {
-    await client.execute({
+    await db.execute({
       sql: `INSERT OR IGNORE INTO quarterbacks (name, team, espn_id) VALUES (?, ?, ?)`,
       args: [qb.name, qb.team, qb.espn_id],
     });
@@ -163,7 +175,7 @@ export async function seedQuarterbacks(qbs: { name: string; team: string; espn_i
 
   // Create initial snapshots for new QBs
   const today = new Date().toISOString().split('T')[0];
-  await client.execute({
+  await db.execute({
     sql: `INSERT OR IGNORE INTO trust_snapshots (qb_id, score, snapshot_date)
           SELECT id, trust_score, ? FROM quarterbacks
           WHERE id NOT IN (SELECT qb_id FROM trust_snapshots)`,
@@ -171,4 +183,4 @@ export async function seedQuarterbacks(qbs: { name: string; team: string; espn_i
   });
 }
 
-export default client;
+export default getClient;
