@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import TrustGauge from '@/components/TrustGauge';
@@ -12,7 +13,9 @@ interface Quarterback {
   name: string;
   team: string;
   espn_id: string;
+  headshot_url: string | null;
   trust_score: number;
+  recent_vote_count: number;
 }
 
 interface TrustSnapshot {
@@ -22,41 +25,44 @@ interface TrustSnapshot {
   snapshot_date: string;
 }
 
-export default function QBDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params);
+export default function QBDetailPage() {
+  const params = useParams();
+  const id = params?.id as string;
+
   const [qb, setQb] = useState<Quarterback | null>(null);
   const [history, setHistory] = useState<TrustSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [scoreUpdated, setScoreUpdated] = useState(false);
 
-  const fetchData = async () => {
-    try {
-      const [qbResponse, historyResponse] = await Promise.all([
-        fetch(`/api/qbs/${resolvedParams.id}`),
-        fetch(`/api/qbs/${resolvedParams.id}/history?days=30`),
-      ]);
-
-      if (!qbResponse.ok) {
-        throw new Error('Quarterback not found');
-      }
-
-      const qbData = await qbResponse.json();
-      const historyData = await historyResponse.json();
-
-      setQb(qbData);
-      setHistory(historyData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    if (!id) return;
+
+    const fetchData = async () => {
+      try {
+        const [qbResponse, historyResponse] = await Promise.all([
+          fetch(`/api/qbs/${id}`),
+          fetch(`/api/qbs/${id}/history?days=30`),
+        ]);
+
+        if (!qbResponse.ok) {
+          throw new Error('Quarterback not found');
+        }
+
+        const qbData = await qbResponse.json();
+        const historyData = await historyResponse.json();
+
+        setQb(qbData);
+        setHistory(historyData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedParams.id]);
+  }, [id]);
 
   const handleVote = async (direction: 'more' | 'less') => {
     if (!qb) return;
@@ -145,7 +151,7 @@ export default function QBDetailPage({ params }: { params: Promise<{ id: string 
           {/* Headshot */}
           <div className="relative w-40 h-40 md:w-48 md:h-48 rounded-full overflow-hidden bg-gray-700 flex-shrink-0 ring-4 ring-[var(--card-border)]">
             <Image
-              src={`https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/${qb.espn_id}.png&w=350&h=254&cb=1`}
+              src={qb.headshot_url || `https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/${qb.espn_id}.png&w=350&h=254&cb=1`}
               alt={qb.name}
               fill
               className="object-cover object-top"
@@ -160,10 +166,14 @@ export default function QBDetailPage({ params }: { params: Promise<{ id: string 
             <p className="text-xl text-gray-400 mt-1">{qb.team}</p>
 
             {/* Trust Gauge */}
-            <div className="mt-6 flex justify-center md:justify-start">
+            <div className="mt-6 flex flex-col items-center md:items-start">
               <div className={scoreUpdated ? 'score-updated' : ''}>
                 <TrustGauge score={qb.trust_score} size={280} />
               </div>
+              {/* Vote count transparency */}
+              <p className="text-gray-500 text-sm mt-2">
+                Based on {qb.recent_vote_count} vote{qb.recent_vote_count !== 1 ? 's' : ''} in the last 7 days
+              </p>
             </div>
           </div>
         </div>
@@ -182,9 +192,10 @@ export default function QBDetailPage({ params }: { params: Promise<{ id: string 
         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
           <h3 className="text-lg font-semibold text-white mb-4">About Trust Score</h3>
           <p className="text-gray-400 text-sm leading-relaxed">
-            The Trust Score is a crowd-sourced rating that reflects fan confidence
-            in this quarterback. Each vote adjusts the score slightly, with
-            diminishing returns near the extremes. Vote once every 5 minutes per QB.
+            The Trust Score uses time-weighted voting with a Bayesian prior.
+            Recent votes count more than older ones (7-day half-life), and a
+            baseline of 20 virtual votes at 50% prevents wild swings with few votes.
+            Vote once every 5 minutes per QB.
           </p>
         </div>
 
@@ -209,6 +220,10 @@ export default function QBDetailPage({ params }: { params: Promise<{ id: string 
             <div className="flex justify-between">
               <span className="text-gray-400">Current Score</span>
               <span className="text-white font-semibold">{Math.round(qb.trust_score * 10) / 10}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Recent Votes (7 days)</span>
+              <span className="text-white">{qb.recent_vote_count}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">History Points</span>

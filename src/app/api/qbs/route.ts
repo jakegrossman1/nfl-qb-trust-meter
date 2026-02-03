@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getAllQuarterbacks, seedQuarterbacks } from '@/lib/db';
-import { startingQBs } from '@/lib/qb-data';
+import { getAllQuarterbacks } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    // Ensure database is seeded
-    await seedQuarterbacks(startingQBs);
-
     const qbs = await getAllQuarterbacks();
     return NextResponse.json(qbs);
   } catch (error) {

@@ -1,4 +1,5 @@
 import { createClient, Client } from '@libsql/client';
+import { PRIOR_STRENGTH, HALF_LIFE_DAYS, DEFAULT_SCORE } from './config';
 
 // Lazy-load client to avoid build-time errors
 let client: Client | null = null;
@@ -23,10 +24,25 @@ async function initDb() {
       name TEXT NOT NULL,
       team TEXT NOT NULL,
       espn_id TEXT NOT NULL UNIQUE,
-      trust_score REAL DEFAULT 50,
+      headshot_url TEXT,
+      is_active BOOLEAN DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Add headshot_url column if it doesn't exist (migration for existing DBs)
+  try {
+    await db.execute(`ALTER TABLE quarterbacks ADD COLUMN headshot_url TEXT`);
+  } catch {
+    // Column already exists, ignore
+  }
+
+  // Add is_active column if it doesn't exist
+  try {
+    await db.execute(`ALTER TABLE quarterbacks ADD COLUMN is_active BOOLEAN DEFAULT 1`);
+  } catch {
+    // Column already exists, ignore
+  }
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS votes (
@@ -65,13 +81,25 @@ async function ensureInitialized() {
   }
 }
 
-export interface Quarterback {
+// Base quarterback data from DB (without computed score)
+export interface QuarterbackBase {
   id: number;
   name: string;
   team: string;
   espn_id: string;
-  trust_score: number;
+  headshot_url: string | null;
+  is_active: boolean;
   created_at: string;
+}
+
+// Quarterback with computed trust score
+export interface Quarterback extends QuarterbackBase {
+  trust_score: number;
+}
+
+// Quarterback with additional vote stats
+export interface QuarterbackWithStats extends Quarterback {
+  recent_vote_count: number;
 }
 
 export interface Vote {
@@ -88,30 +116,130 @@ export interface TrustSnapshot {
   snapshot_date: string;
 }
 
-// Get all quarterbacks
+/**
+ * Calculate trust score using time-weighted voting with Bayesian prior
+ *
+ * Formula:
+ * trust_score = (sum of weighted votes + PRIOR_STRENGTH * 50) / (sum of weights + PRIOR_STRENGTH)
+ *
+ * Where:
+ * - vote_value = 100 for "trust more", 0 for "trust less"
+ * - decay_weight = 0.5 ^ (vote_age_in_days / HALF_LIFE_DAYS)
+ */
+function calculateTrustScore(votes: { direction: string; created_at: string }[]): number {
+  if (votes.length === 0) {
+    return DEFAULT_SCORE;
+  }
+
+  const now = Date.now();
+  let weightedSum = 0;
+  let totalWeight = 0;
+
+  for (const vote of votes) {
+    const voteTime = new Date(vote.created_at).getTime();
+    const ageInDays = (now - voteTime) / (1000 * 60 * 60 * 24);
+    const decayWeight = Math.pow(0.5, ageInDays / HALF_LIFE_DAYS);
+    const voteValue = vote.direction === 'more' ? 100 : 0;
+
+    weightedSum += voteValue * decayWeight;
+    totalWeight += decayWeight;
+  }
+
+  // Apply Bayesian prior (PRIOR_STRENGTH virtual votes at 50)
+  const priorSum = PRIOR_STRENGTH * DEFAULT_SCORE;
+  const score = (weightedSum + priorSum) / (totalWeight + PRIOR_STRENGTH);
+
+  return Math.round(score * 10) / 10; // Round to 1 decimal place
+}
+
+/**
+ * Count votes within the last N days
+ */
+function countRecentVotes(votes: { created_at: string }[], days: number = HALF_LIFE_DAYS): number {
+  const now = Date.now();
+  const cutoff = now - (days * 24 * 60 * 60 * 1000);
+
+  return votes.filter(vote => new Date(vote.created_at).getTime() > cutoff).length;
+}
+
+// Get all quarterbacks with computed trust scores
 export async function getAllQuarterbacks(): Promise<Quarterback[]> {
-  await ensureInitialized();
-  const result = await getClient().execute('SELECT * FROM quarterbacks ORDER BY name');
-  return result.rows as unknown as Quarterback[];
-}
-
-// Get quarterback by ID
-export async function getQuarterbackById(id: number): Promise<Quarterback | undefined> {
-  await ensureInitialized();
-  const result = await getClient().execute({
-    sql: 'SELECT * FROM quarterbacks WHERE id = ?',
-    args: [id],
-  });
-  return result.rows[0] as unknown as Quarterback | undefined;
-}
-
-// Record a vote and update trust score
-export async function recordVote(qbId: number, direction: 'more' | 'less'): Promise<Quarterback | null> {
   await ensureInitialized();
   const db = getClient();
 
-  const qb = await getQuarterbackById(qbId);
-  if (!qb) return null;
+  // Get all active quarterbacks
+  const qbResult = await db.execute('SELECT * FROM quarterbacks WHERE is_active = 1');
+  const qbs = qbResult.rows as unknown as QuarterbackBase[];
+
+  // Get all votes
+  const votesResult = await db.execute('SELECT qb_id, direction, created_at FROM votes');
+  const allVotes = votesResult.rows as unknown as { qb_id: number; direction: string; created_at: string }[];
+
+  // Group votes by QB
+  const votesByQb = new Map<number, { direction: string; created_at: string }[]>();
+  for (const vote of allVotes) {
+    if (!votesByQb.has(vote.qb_id)) {
+      votesByQb.set(vote.qb_id, []);
+    }
+    votesByQb.get(vote.qb_id)!.push(vote);
+  }
+
+  // Calculate trust score for each QB
+  const quarterbacks: Quarterback[] = qbs.map(qb => ({
+    ...qb,
+    trust_score: calculateTrustScore(votesByQb.get(qb.id) || []),
+  }));
+
+  // Sort by name
+  quarterbacks.sort((a, b) => a.name.localeCompare(b.name));
+
+  return quarterbacks;
+}
+
+// Get quarterback by ID with computed trust score and stats
+export async function getQuarterbackById(id: number): Promise<QuarterbackWithStats | undefined> {
+  await ensureInitialized();
+  const db = getClient();
+
+  const qbResult = await db.execute({
+    sql: 'SELECT * FROM quarterbacks WHERE id = ?',
+    args: [id],
+  });
+
+  if (qbResult.rows.length === 0) {
+    return undefined;
+  }
+
+  const qb = qbResult.rows[0] as unknown as QuarterbackBase;
+
+  // Get votes for this QB
+  const votesResult = await db.execute({
+    sql: 'SELECT direction, created_at FROM votes WHERE qb_id = ?',
+    args: [id],
+  });
+  const votes = votesResult.rows as unknown as { direction: string; created_at: string }[];
+
+  return {
+    ...qb,
+    trust_score: calculateTrustScore(votes),
+    recent_vote_count: countRecentVotes(votes),
+  };
+}
+
+// Record a vote (no longer updates trust_score column - it's computed dynamically)
+export async function recordVote(qbId: number, direction: 'more' | 'less'): Promise<QuarterbackWithStats | null> {
+  await ensureInitialized();
+  const db = getClient();
+
+  // Check if QB exists
+  const qbResult = await db.execute({
+    sql: 'SELECT id FROM quarterbacks WHERE id = ?',
+    args: [qbId],
+  });
+
+  if (qbResult.rows.length === 0) {
+    return null;
+  }
 
   // Insert vote
   await db.execute({
@@ -119,32 +247,7 @@ export async function recordVote(qbId: number, direction: 'more' | 'less'): Prom
     args: [qbId, direction],
   });
 
-  // Update trust score
-  const change = direction === 'more' ? 1 : -1;
-
-  // Apply diminishing returns near extremes
-  let multiplier = 1;
-  if (qb.trust_score > 90 && direction === 'more') multiplier = 0.3;
-  else if (qb.trust_score < 10 && direction === 'less') multiplier = 0.3;
-  else if (qb.trust_score > 80 && direction === 'more') multiplier = 0.5;
-  else if (qb.trust_score < 20 && direction === 'less') multiplier = 0.5;
-
-  const newScore = Math.max(0, Math.min(100, qb.trust_score + (change * multiplier)));
-
-  await db.execute({
-    sql: 'UPDATE quarterbacks SET trust_score = ? WHERE id = ?',
-    args: [newScore, qbId],
-  });
-
-  // Record snapshot for today (upsert)
-  const today = new Date().toISOString().split('T')[0];
-  await db.execute({
-    sql: `INSERT INTO trust_snapshots (qb_id, score, snapshot_date)
-          VALUES (?, ?, ?)
-          ON CONFLICT(qb_id, snapshot_date) DO UPDATE SET score = excluded.score`,
-    args: [qbId, newScore, today],
-  });
-
+  // Return updated QB with new computed score
   return await getQuarterbackById(qbId) || null;
 }
 
@@ -161,26 +264,46 @@ export async function getTrustHistory(qbId: number, days: number = 30): Promise<
   return (result.rows as unknown as TrustSnapshot[]).reverse();
 }
 
-// Seed initial data
-export async function seedQuarterbacks(qbs: { name: string; team: string; espn_id: string }[]) {
+// Compute and store trust score snapshots for all QBs (for cron job)
+export async function createTrustSnapshots(): Promise<{ qb_id: number; score: number }[]> {
   await ensureInitialized();
   const db = getClient();
 
-  for (const qb of qbs) {
+  // Get all QBs with their current computed scores
+  const quarterbacks = await getAllQuarterbacks();
+  const today = new Date().toISOString().split('T')[0];
+
+  const snapshots: { qb_id: number; score: number }[] = [];
+
+  for (const qb of quarterbacks) {
     await db.execute({
-      sql: `INSERT OR IGNORE INTO quarterbacks (name, team, espn_id) VALUES (?, ?, ?)`,
-      args: [qb.name, qb.team, qb.espn_id],
+      sql: `INSERT INTO trust_snapshots (qb_id, score, snapshot_date)
+            VALUES (?, ?, ?)
+            ON CONFLICT(qb_id, snapshot_date) DO UPDATE SET score = excluded.score`,
+      args: [qb.id, qb.trust_score, today],
     });
+    snapshots.push({ qb_id: qb.id, score: qb.trust_score });
   }
 
-  // Create initial snapshots for new QBs
-  const today = new Date().toISOString().split('T')[0];
-  await db.execute({
-    sql: `INSERT OR IGNORE INTO trust_snapshots (qb_id, score, snapshot_date)
-          SELECT id, trust_score, ? FROM quarterbacks
-          WHERE id NOT IN (SELECT qb_id FROM trust_snapshots)`,
-    args: [today],
+  return snapshots;
+}
+
+// Get vote stats for a QB (for transparency display)
+export async function getVoteStats(qbId: number): Promise<{ total: number; recent: number; recentDays: number }> {
+  await ensureInitialized();
+  const db = getClient();
+
+  const votesResult = await db.execute({
+    sql: 'SELECT created_at FROM votes WHERE qb_id = ?',
+    args: [qbId],
   });
+  const votes = votesResult.rows as unknown as { created_at: string }[];
+
+  return {
+    total: votes.length,
+    recent: countRecentVotes(votes),
+    recentDays: HALF_LIFE_DAYS,
+  };
 }
 
 export default getClient;
