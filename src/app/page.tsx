@@ -8,6 +8,7 @@ interface Quarterback {
   name: string;
   team: string;
   espn_id: string;
+  headshot_url: string | null;
   trust_score: number;
 }
 
@@ -158,6 +159,7 @@ export default function Home() {
             name={qb.name}
             team={qb.team}
             espn_id={qb.espn_id}
+            headshot_url={qb.headshot_url}
             trust_score={qb.trust_score}
           />
         ))}

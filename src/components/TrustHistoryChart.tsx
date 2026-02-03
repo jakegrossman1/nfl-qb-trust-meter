@@ -1,41 +1,6 @@
 'use client';
 
-import dynamic from 'next/dynamic';
-import { useMemo } from 'react';
-
-// Dynamically import Recharts with no SSR to avoid hydration issues
-const LineChart = dynamic(
-  () => import('recharts').then((mod) => mod.LineChart),
-  { ssr: false }
-);
-const Line = dynamic(
-  () => import('recharts').then((mod) => mod.Line),
-  { ssr: false }
-);
-const XAxis = dynamic(
-  () => import('recharts').then((mod) => mod.XAxis),
-  { ssr: false }
-);
-const YAxis = dynamic(
-  () => import('recharts').then((mod) => mod.YAxis),
-  { ssr: false }
-);
-const CartesianGrid = dynamic(
-  () => import('recharts').then((mod) => mod.CartesianGrid),
-  { ssr: false }
-);
-const Tooltip = dynamic(
-  () => import('recharts').then((mod) => mod.Tooltip),
-  { ssr: false }
-);
-const ResponsiveContainer = dynamic(
-  () => import('recharts').then((mod) => mod.ResponsiveContainer),
-  { ssr: false }
-);
-const ReferenceLine = dynamic(
-  () => import('recharts').then((mod) => mod.ReferenceLine),
-  { ssr: false }
-);
+import { useMemo, useState, useEffect } from 'react';
 
 interface TrustSnapshot {
   id: number;
@@ -54,7 +19,39 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RechartsComponent = React.ComponentType<any>;
+
+interface RechartsComponents {
+  LineChart: RechartsComponent;
+  Line: RechartsComponent;
+  XAxis: RechartsComponent;
+  YAxis: RechartsComponent;
+  CartesianGrid: RechartsComponent;
+  Tooltip: RechartsComponent;
+  ResponsiveContainer: RechartsComponent;
+  ReferenceLine: RechartsComponent;
+}
+
 export default function TrustHistoryChart({ history, currentScore }: TrustHistoryChartProps) {
+  const [RechartsComponents, setRechartsComponents] = useState<RechartsComponents | null>(null);
+
+  useEffect(() => {
+    // Dynamically import recharts only on client side
+    import('recharts').then((mod) => {
+      setRechartsComponents({
+        LineChart: mod.LineChart,
+        Line: mod.Line,
+        XAxis: mod.XAxis,
+        YAxis: mod.YAxis,
+        CartesianGrid: mod.CartesianGrid,
+        Tooltip: mod.Tooltip,
+        ResponsiveContainer: mod.ResponsiveContainer,
+        ReferenceLine: mod.ReferenceLine,
+      });
+    });
+  }, []);
+
   const data = useMemo(() => {
     if (!history || history.length === 0) return [];
 
@@ -96,6 +93,29 @@ export default function TrustHistoryChart({ history, currentScore }: TrustHistor
     );
   }
 
+  // Show loading state while recharts loads
+  if (!RechartsComponents) {
+    return (
+      <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">Trust History</h3>
+        <div className="h-64 flex items-center justify-center">
+          <div className="animate-pulse text-gray-400">Loading chart...</div>
+        </div>
+      </div>
+    );
+  }
+
+  const {
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    ReferenceLine,
+  } = RechartsComponents;
+
   return (
     <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
       <h3 className="text-lg font-semibold text-white mb-4">Trust History</h3>
@@ -133,7 +153,7 @@ export default function TrustHistoryChart({ history, currentScore }: TrustHistor
                 color: 'white',
               }}
               labelStyle={{ color: '#9ca3af' }}
-              formatter={(value) => [`${value}`, 'Trust Score']}
+              formatter={(value: number) => [`${value}`, 'Trust Score']}
             />
             <ReferenceLine
               y={50}

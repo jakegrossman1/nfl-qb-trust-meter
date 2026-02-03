@@ -8,6 +8,7 @@ interface QBCardProps {
   name: string;
   team: string;
   espn_id: string;
+  headshot_url?: string | null;
   trust_score: number;
 }
 
@@ -27,10 +28,13 @@ function getScoreLabel(score: number): string {
   return 'Bust';
 }
 
-export default function QBCard({ id, name, team, espn_id, trust_score }: QBCardProps) {
+export default function QBCard({ id, name, team, espn_id, headshot_url, trust_score }: QBCardProps) {
   const score = Math.round(trust_score);
   const scoreColor = getScoreColor(score);
   const scoreLabel = getScoreLabel(score);
+
+  // Use headshot_url from DB, fallback to ESPN CDN
+  const imageUrl = headshot_url || `https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/${espn_id}.png&w=96&h=70&cb=1`;
 
   return (
     <Link href={`/qb/${id}`}>
@@ -38,7 +42,7 @@ export default function QBCard({ id, name, team, espn_id, trust_score }: QBCardP
         <div className="flex items-center gap-4">
           <div className="relative w-16 h-16 rounded-full overflow-hidden bg-gray-700 flex-shrink-0">
             <Image
-              src={`https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/${espn_id}.png&w=96&h=70&cb=1`}
+              src={imageUrl}
               alt={name}
               fill
               className="object-cover object-top"
