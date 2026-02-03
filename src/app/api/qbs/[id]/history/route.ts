@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTrustHistory, getQuarterbackById, seedQuarterbacks } from '@/lib/db';
-import { startingQBs } from '@/lib/qb-data';
+import { getTrustHistory, getQuarterbackById } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,9 +8,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Ensure database is seeded
-    await seedQuarterbacks(startingQBs);
-
     const { id } = await params;
     const qbId = parseInt(id, 10);
 
