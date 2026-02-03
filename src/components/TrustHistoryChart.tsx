@@ -1,15 +1,41 @@
 'use client';
 
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from 'recharts';
+import dynamic from 'next/dynamic';
+import { useMemo } from 'react';
+
+// Dynamically import Recharts with no SSR to avoid hydration issues
+const LineChart = dynamic(
+  () => import('recharts').then((mod) => mod.LineChart),
+  { ssr: false }
+);
+const Line = dynamic(
+  () => import('recharts').then((mod) => mod.Line),
+  { ssr: false }
+);
+const XAxis = dynamic(
+  () => import('recharts').then((mod) => mod.XAxis),
+  { ssr: false }
+);
+const YAxis = dynamic(
+  () => import('recharts').then((mod) => mod.YAxis),
+  { ssr: false }
+);
+const CartesianGrid = dynamic(
+  () => import('recharts').then((mod) => mod.CartesianGrid),
+  { ssr: false }
+);
+const Tooltip = dynamic(
+  () => import('recharts').then((mod) => mod.Tooltip),
+  { ssr: false }
+);
+const ResponsiveContainer = dynamic(
+  () => import('recharts').then((mod) => mod.ResponsiveContainer),
+  { ssr: false }
+);
+const ReferenceLine = dynamic(
+  () => import('recharts').then((mod) => mod.ReferenceLine),
+  { ssr: false }
+);
 
 interface TrustSnapshot {
   id: number;
@@ -29,6 +55,35 @@ function formatDate(dateStr: string): string {
 }
 
 export default function TrustHistoryChart({ history, currentScore }: TrustHistoryChartProps) {
+  const data = useMemo(() => {
+    if (!history || history.length === 0) return [];
+
+    const chartData = history.map((snapshot) => ({
+      date: formatDate(snapshot.snapshot_date),
+      score: Math.round(snapshot.score * 10) / 10,
+      fullDate: snapshot.snapshot_date,
+    }));
+
+    // Add current score if it's different from the last snapshot
+    if (chartData.length > 0 && chartData[chartData.length - 1].score !== currentScore) {
+      chartData.push({
+        date: 'Now',
+        score: Math.round(currentScore * 10) / 10,
+        fullDate: new Date().toISOString().split('T')[0],
+      });
+    }
+
+    return chartData;
+  }, [history, currentScore]);
+
+  const { minScore, maxScore } = useMemo(() => {
+    if (data.length === 0) return { minScore: 0, maxScore: 100 };
+    return {
+      minScore: Math.max(0, Math.min(...data.map((d) => d.score)) - 10),
+      maxScore: Math.min(100, Math.max(...data.map((d) => d.score)) + 10),
+    };
+  }, [data]);
+
   // If no history, show a message
   if (!history || history.length === 0) {
     return (
@@ -40,24 +95,6 @@ export default function TrustHistoryChart({ history, currentScore }: TrustHistor
       </div>
     );
   }
-
-  const data = history.map((snapshot) => ({
-    date: formatDate(snapshot.snapshot_date),
-    score: Math.round(snapshot.score * 10) / 10,
-    fullDate: snapshot.snapshot_date,
-  }));
-
-  // Add current score if it's different from the last snapshot
-  if (data.length > 0 && data[data.length - 1].score !== currentScore) {
-    data.push({
-      date: 'Now',
-      score: Math.round(currentScore * 10) / 10,
-      fullDate: new Date().toISOString().split('T')[0],
-    });
-  }
-
-  const minScore = Math.max(0, Math.min(...data.map((d) => d.score)) - 10);
-  const maxScore = Math.min(100, Math.max(...data.map((d) => d.score)) + 10);
 
   return (
     <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
