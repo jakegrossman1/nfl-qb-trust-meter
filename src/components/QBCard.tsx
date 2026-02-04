@@ -12,14 +12,6 @@ interface QBCardProps {
   trust_score: number;
 }
 
-function getScoreColor(score: number): string {
-  if (score >= 80) return 'text-green-400';
-  if (score >= 60) return 'text-yellow-400';
-  if (score >= 40) return 'text-orange-400';
-  if (score >= 20) return 'text-red-500';
-  return 'text-red-700';
-}
-
 function getScoreLabel(score: number): string {
   if (score >= 80) return 'Elite';
   if (score >= 60) return 'Trusted';
@@ -28,10 +20,49 @@ function getScoreLabel(score: number): string {
   return 'Risky/Bust';
 }
 
+// Interpolate between two hex colors
+function interpolateColor(color1: string, color2: string, factor: number): string {
+  const r1 = parseInt(color1.slice(1, 3), 16);
+  const g1 = parseInt(color1.slice(3, 5), 16);
+  const b1 = parseInt(color1.slice(5, 7), 16);
+  const r2 = parseInt(color2.slice(1, 3), 16);
+  const g2 = parseInt(color2.slice(3, 5), 16);
+  const b2 = parseInt(color2.slice(5, 7), 16);
+
+  const r = Math.round(r1 + (r2 - r1) * factor);
+  const g = Math.round(g1 + (g2 - g1) * factor);
+  const b = Math.round(b1 + (b2 - b1) * factor);
+
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+// Get interpolated color based on score (0-100)
+function getInterpolatedColor(score: number): string {
+  const colors = [
+    { score: 0, color: '#991b1b' },   // Dark red
+    { score: 20, color: '#dc2626' },  // Red
+    { score: 40, color: '#f97316' },  // Orange
+    { score: 60, color: '#eab308' },  // Yellow
+    { score: 80, color: '#22c55e' },  // Green
+    { score: 100, color: '#22c55e' }, // Green
+  ];
+
+  // Find the two colors to interpolate between
+  for (let i = 0; i < colors.length - 1; i++) {
+    if (score >= colors[i].score && score <= colors[i + 1].score) {
+      const range = colors[i + 1].score - colors[i].score;
+      const factor = (score - colors[i].score) / range;
+      return interpolateColor(colors[i].color, colors[i + 1].color, factor);
+    }
+  }
+
+  return colors[colors.length - 1].color;
+}
+
 export default function QBCard({ id, name, team, espn_id, headshot_url, trust_score }: QBCardProps) {
   const score = Math.round(trust_score);
-  const scoreColor = getScoreColor(score);
   const scoreLabel = getScoreLabel(score);
+  const barColor = getInterpolatedColor(score);
 
   // Use headshot_url from DB, fallback to ESPN CDN
   const imageUrl = headshot_url || `https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/${espn_id}.png&w=96&h=70&cb=1`;
@@ -58,16 +89,6 @@ export default function QBCard({ id, name, team, espn_id, headshot_url, trust_sc
           <div className="flex items-center gap-2">
             <div className="relative w-12 h-12">
               <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
-                <defs>
-                  <linearGradient id={`gradient-${id}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#991b1b" />
-                    <stop offset="20%" stopColor="#dc2626" />
-                    <stop offset="40%" stopColor="#f97316" />
-                    <stop offset="60%" stopColor="#eab308" />
-                    <stop offset="80%" stopColor="#22c55e" />
-                    <stop offset="100%" stopColor="#22c55e" />
-                  </linearGradient>
-                </defs>
                 <path
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   fill="none"
@@ -77,19 +98,19 @@ export default function QBCard({ id, name, team, espn_id, headshot_url, trust_sc
                 <path
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   fill="none"
-                  stroke={`url(#gradient-${id})`}
+                  stroke={barColor}
                   strokeWidth="3"
                   strokeDasharray={`${score}, 100`}
                   strokeLinecap="round"
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className={`text-xs font-bold ${scoreColor}`}>{score}</span>
+                <span className="text-xs font-bold" style={{ color: barColor }}>{score}</span>
               </div>
             </div>
           </div>
           <div className="text-right">
-            <span className={`text-sm font-medium ${scoreColor}`}>{scoreLabel}</span>
+            <span className="text-sm font-medium" style={{ color: barColor }}>{scoreLabel}</span>
             <p className="text-xs text-gray-500">Trust Score</p>
           </div>
         </div>
