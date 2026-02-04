@@ -223,7 +223,6 @@ export default function Home() {
         {sortedAndFilteredQBs.map((qb) => (
           <QBCard
             key={qb.id}
-            id={qb.id}
             name={qb.name}
             team={qb.team}
             espn_id={qb.espn_id}

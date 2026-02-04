@@ -4,7 +4,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 
 interface QBCardProps {
-  id: number;
   name: string;
   team: string;
   espn_id: string;
@@ -64,7 +63,7 @@ function getInterpolatedColor(score: number): string {
   return colors[colors.length - 1].color;
 }
 
-export default function QBCard({ id, name, team, espn_id, headshot_url, trust_score }: QBCardProps) {
+export default function QBCard({ name, team, espn_id, headshot_url, trust_score }: QBCardProps) {
   const score = Math.round(trust_score);
   const scoreLabel = getScoreLabel(score);
   const barColor = getInterpolatedColor(score);
