@@ -67,7 +67,7 @@ export default function QBCard({ id, name, team, espn_id, headshot_url, trust_sc
                 <path
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   fill="none"
-                  stroke={score >= 70 ? '#00d166' : score >= 50 ? '#fbbf24' : score >= 30 ? '#fb923c' : '#ff4444'}
+                  stroke={score >= 80 ? '#22c55e' : score >= 60 ? '#eab308' : score >= 40 ? '#f97316' : score >= 20 ? '#dc2626' : '#991b1b'}
                   strokeWidth="3"
                   strokeDasharray={`${score}, 100`}
                   strokeLinecap="round"
