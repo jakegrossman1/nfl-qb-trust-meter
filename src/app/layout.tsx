@@ -48,6 +48,7 @@ export default function RootLayout({
           <div className="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
             <p>NFL QB Trust Meter - Fan opinions, not official ratings</p>
             <p className="mt-1">Inspired by darnold-meter.com</p>
+            <p className="mt-1">Created by Jake Grossman</p>
           </div>
         </footer>
       </body>

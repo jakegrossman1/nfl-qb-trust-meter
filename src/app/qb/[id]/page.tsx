@@ -225,10 +225,6 @@ export default function QBDetailPage() {
               <span className="text-gray-400">Recent Votes (7 days)</span>
               <span className="text-white">{qb.recent_vote_count}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">History Points</span>
-              <span className="text-white">{history.length} recorded</span>
-            </div>
           </div>
         </div>
       </div>
