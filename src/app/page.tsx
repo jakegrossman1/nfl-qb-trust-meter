@@ -64,9 +64,6 @@ export default function Home() {
     });
 
   // Calculate some stats
-  const avgScore = quarterbacks.length > 0
-    ? Math.round(quarterbacks.reduce((sum, qb) => sum + qb.trust_score, 0) / quarterbacks.length)
-    : 0;
   const topQB = quarterbacks.length > 0
     ? [...quarterbacks].sort((a, b) => b.trust_score - a.trust_score)[0]
     : null;
@@ -104,11 +101,7 @@ export default function Home() {
   return (
     <div className="space-y-8">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
-          <p className="text-gray-400 text-sm">League Average</p>
-          <p className="text-2xl font-bold text-white">{avgScore}</p>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {topQB && (
           <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
             <p className="text-gray-400 text-sm">Most Trusted</p>
