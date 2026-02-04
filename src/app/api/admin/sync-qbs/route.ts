@@ -6,13 +6,6 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Admin endpoint to sync QB data from qb-data.ts to the database.
- * This will:
- * 1. Clear all ESPN IDs first to avoid conflicts
- * 2. Update existing QBs (by name) with new team/espn_id
- * 3. Add new QBs that don't exist
- * 4. Deactivate QBs not in the list
- *
- * Call this once after updating qb-data.ts to fix the database.
  * GET /api/admin/sync-qbs?confirm=true
  */
 export async function GET(request: NextRequest) {
@@ -40,16 +33,22 @@ export async function GET(request: NextRequest) {
       errors: [] as string[],
     };
 
-    // Step 1: Clear all ESPN IDs to avoid UNIQUE constraint conflicts
-    await client.execute('UPDATE quarterbacks SET espn_id = NULL');
+    // Step 1: Give all existing QBs temporary unique ESPN IDs to avoid conflicts
+    const currentQbs = await client.execute('SELECT id, name, team, espn_id FROM quarterbacks');
+    for (const row of currentQbs.rows) {
+      await client.execute({
+        sql: 'UPDATE quarterbacks SET espn_id = ? WHERE id = ?',
+        args: [`temp_${row.id}`, row.id],
+      });
+    }
 
-    // Get all current QBs
-    const currentQbs = await client.execute('SELECT id, name, team FROM quarterbacks');
-    const currentQbMap = new Map<string, { id: number; team: string }>();
+    // Build map of current QBs
+    const currentQbMap = new Map<string, { id: number; team: string; espn_id: string }>();
     for (const row of currentQbs.rows) {
       currentQbMap.set(row.name as string, {
         id: row.id as number,
         team: row.team as string,
+        espn_id: row.espn_id as string,
       });
     }
 
