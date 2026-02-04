@@ -213,10 +213,11 @@ export default function QBDetailPage() {
             <div className="flex justify-between">
               <span className="text-gray-400">Trust Level</span>
               <span className={`font-semibold ${
-                qb.trust_score >= 70 ? 'text-green-400' :
-                qb.trust_score >= 50 ? 'text-yellow-400' :
-                qb.trust_score >= 30 ? 'text-orange-400' :
-                'text-red-400'
+                qb.trust_score >= 80 ? 'text-green-400' :
+                qb.trust_score >= 60 ? 'text-yellow-400' :
+                qb.trust_score >= 40 ? 'text-orange-400' :
+                qb.trust_score >= 20 ? 'text-red-500' :
+                'text-red-700'
               }`}>
                 {qb.trust_score >= 80 ? 'Elite' :
                  qb.trust_score >= 60 ? 'Trusted' :
