@@ -10,11 +10,10 @@ interface TrustGaugeProps {
 
 function getScoreLabel(score: number): string {
   if (score >= 80) return 'Elite';
-  if (score >= 65) return 'Trusted';
-  if (score >= 50) return 'Average';
-  if (score >= 35) return 'Shaky';
-  if (score >= 20) return 'Risky';
-  return 'Bust Alert';
+  if (score >= 60) return 'Trusted';
+  if (score >= 40) return 'Average';
+  if (score >= 20) return 'Shaky';
+  return 'Risky/Bust';
 }
 
 export default function TrustGauge({ score, size = 280, animated = true }: TrustGaugeProps) {
