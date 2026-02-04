@@ -218,11 +218,10 @@ export default function QBDetailPage() {
                 qb.trust_score >= 30 ? 'text-orange-400' :
                 'text-red-400'
               }`}>
-                {qb.trust_score >= 80 ? 'Elite Starter' :
-                 qb.trust_score >= 65 ? 'Trusted' :
-                 qb.trust_score >= 50 ? 'Average' :
-                 qb.trust_score >= 35 ? 'Shaky' :
-                 qb.trust_score >= 20 ? 'Risky' : 'Bust Alert'}
+                {qb.trust_score >= 80 ? 'Elite' :
+                 qb.trust_score >= 60 ? 'Trusted' :
+                 qb.trust_score >= 40 ? 'Average' :
+                 qb.trust_score >= 20 ? 'Shaky' : 'Risky/Bust'}
               </span>
             </div>
             <div className="flex justify-between">

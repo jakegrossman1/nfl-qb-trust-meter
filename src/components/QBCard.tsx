@@ -21,11 +21,10 @@ function getScoreColor(score: number): string {
 
 function getScoreLabel(score: number): string {
   if (score >= 80) return 'Elite';
-  if (score >= 65) return 'Trusted';
-  if (score >= 50) return 'Average';
-  if (score >= 35) return 'Shaky';
-  if (score >= 20) return 'Risky';
-  return 'Bust';
+  if (score >= 60) return 'Trusted';
+  if (score >= 40) return 'Average';
+  if (score >= 20) return 'Shaky';
+  return 'Risky/Bust';
 }
 
 export default function QBCard({ id, name, team, espn_id, headshot_url, trust_score }: QBCardProps) {

@@ -243,20 +243,20 @@ export default function Home() {
             <span className="text-gray-300">80-100: Elite</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-400 opacity-70" />
-            <span className="text-gray-300">65-79: Trusted</span>
-          </div>
-          <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-yellow-400" />
-            <span className="text-gray-300">50-64: Average</span>
+            <span className="text-gray-300">60-79: Trusted</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-orange-400" />
-            <span className="text-gray-300">35-49: Shaky</span>
+            <span className="text-gray-300">40-59: Average</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-red-400" />
-            <span className="text-gray-300">0-34: Risky/Bust</span>
+            <div className="w-3 h-3 rounded-full bg-red-500" />
+            <span className="text-gray-300">20-39: Shaky</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-red-700" />
+            <span className="text-gray-300">0-19: Risky/Bust</span>
           </div>
         </div>
       </div>
