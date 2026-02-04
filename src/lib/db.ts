@@ -320,7 +320,7 @@ export async function getQuarterbacksWithMovement(): Promise<(Quarterback & { mo
   const targetDate = sevenDaysAgo.toISOString().split('T')[0];
 
   // Use a subquery to get the most recent snapshot before the target date for each QB
-  const snapshotsResult = await db.execute({
+  let snapshotsResult = await db.execute({
     sql: `SELECT ts.qb_id, ts.score
           FROM trust_snapshots ts
           INNER JOIN (
@@ -331,6 +331,21 @@ export async function getQuarterbacksWithMovement(): Promise<(Quarterback & { mo
           ) latest ON ts.qb_id = latest.qb_id AND ts.snapshot_date = latest.max_date`,
     args: [targetDate],
   });
+
+  // If no snapshots from 7+ days ago, fall back to the oldest available snapshots
+  if (snapshotsResult.rows.length === 0) {
+    snapshotsResult = await db.execute({
+      sql: `SELECT ts.qb_id, ts.score
+            FROM trust_snapshots ts
+            INNER JOIN (
+              SELECT qb_id, MIN(snapshot_date) as min_date
+              FROM trust_snapshots
+              GROUP BY qb_id
+            ) oldest ON ts.qb_id = oldest.qb_id AND ts.snapshot_date = oldest.min_date`,
+      args: [],
+    });
+  }
+
   const oldSnapshots = snapshotsResult.rows as unknown as { qb_id: number; score: number }[];
 
   // Create a map of old scores
