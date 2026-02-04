@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import QBCard from '@/components/QBCard';
 
 interface Quarterback {
@@ -140,6 +141,15 @@ export default function Home() {
             <option value="name">Name (A-Z)</option>
             <option value="team">Team (A-Z)</option>
           </select>
+          <Link
+            href="/quick-vote"
+            className="px-4 py-3 bg-[var(--accent-blue)] text-white rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Quick Vote
+          </Link>
         </div>
       </div>
 
