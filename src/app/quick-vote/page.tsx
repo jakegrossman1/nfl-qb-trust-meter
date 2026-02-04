@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -15,6 +15,12 @@ interface Quarterback {
 
 type SortOption = 'score-desc' | 'score-asc' | 'name' | 'team';
 
+const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+
+function getCooldownKey(qbId: number): string {
+  return `qb-vote-cooldown-${qbId}`;
+}
+
 export default function QuickVotePage() {
   const [quarterbacks, setQuarterbacks] = useState<Quarterback[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,6 +28,46 @@ export default function QuickVotePage() {
   const [sortBy, setSortBy] = useState<SortOption>('score-desc');
   const [votingId, setVotingId] = useState<number | null>(null);
   const [recentVotes, setRecentVotes] = useState<Record<number, 'more' | 'less'>>({});
+  const [cooldowns, setCooldowns] = useState<Record<number, number>>({});
+
+  // Check localStorage for existing cooldowns on mount
+  useEffect(() => {
+    const stored: Record<number, number> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('qb-vote-cooldown-')) {
+        const qbId = parseInt(key.replace('qb-vote-cooldown-', ''), 10);
+        const endTime = parseInt(localStorage.getItem(key) || '0', 10);
+        if (endTime > Date.now()) {
+          stored[qbId] = endTime;
+        } else {
+          localStorage.removeItem(key);
+        }
+      }
+    }
+    setCooldowns(stored);
+  }, []);
+
+  // Update cooldown timers every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCooldowns(prev => {
+        const updated = { ...prev };
+        let changed = false;
+        for (const qbId of Object.keys(updated)) {
+          const id = parseInt(qbId, 10);
+          if (updated[id] <= Date.now()) {
+            delete updated[id];
+            localStorage.removeItem(getCooldownKey(id));
+            changed = true;
+          }
+        }
+        return changed ? updated : prev;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const fetchQBs = async () => {
@@ -41,7 +87,24 @@ export default function QuickVotePage() {
     fetchQBs();
   }, []);
 
+  const isOnCooldown = useCallback((qbId: number): boolean => {
+    return cooldowns[qbId] !== undefined && cooldowns[qbId] > Date.now();
+  }, [cooldowns]);
+
+  const getCooldownTimeLeft = useCallback((qbId: number): number => {
+    if (!cooldowns[qbId]) return 0;
+    return Math.max(0, Math.ceil((cooldowns[qbId] - Date.now()) / 1000));
+  }, [cooldowns]);
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const handleVote = async (qbId: number, direction: 'more' | 'less') => {
+    if (isOnCooldown(qbId)) return;
+
     setVotingId(qbId);
 
     try {
@@ -60,6 +123,11 @@ export default function QuickVotePage() {
       setQuarterbacks(prev =>
         prev.map(qb => qb.id === qbId ? { ...qb, trust_score: updatedQb.trust_score } : qb)
       );
+
+      // Set cooldown
+      const endTime = Date.now() + COOLDOWN_MS;
+      setCooldowns(prev => ({ ...prev, [qbId]: endTime }));
+      localStorage.setItem(getCooldownKey(qbId), endTime.toString());
 
       setRecentVotes(prev => ({ ...prev, [qbId]: direction }));
 
@@ -124,7 +192,7 @@ export default function QuickVotePage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Quick Vote</h1>
-          <p className="text-gray-400 text-sm mt-1">Rapidly rate all quarterbacks</p>
+          <p className="text-gray-400 text-sm mt-1">Rapidly rate all quarterbacks (5 min cooldown per QB)</p>
         </div>
         <Link
           href="/"
@@ -152,7 +220,7 @@ export default function QuickVotePage() {
       {/* QB List */}
       <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl overflow-hidden">
         {/* Table Header */}
-        <div className="hidden sm:grid sm:grid-cols-[auto_1fr_100px_140px] gap-4 px-4 py-3 bg-[var(--card-border)] text-gray-400 text-sm font-medium">
+        <div className="hidden sm:grid sm:grid-cols-[auto_1fr_100px_180px] gap-4 px-4 py-3 bg-[var(--card-border)] text-gray-400 text-sm font-medium">
           <div className="w-12"></div>
           <div>Player</div>
           <div className="text-center">Score</div>
@@ -161,89 +229,102 @@ export default function QuickVotePage() {
 
         {/* QB Rows */}
         <div className="divide-y divide-[var(--card-border)]">
-          {sortedQBs.map((qb, index) => (
-            <div
-              key={qb.id}
-              className={`grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_100px_140px] gap-3 sm:gap-4 px-4 py-3 items-center transition-colors ${
-                recentVotes[qb.id] === 'more' ? 'bg-green-500/10' :
-                recentVotes[qb.id] === 'less' ? 'bg-red-500/10' : ''
-              }`}
-            >
-              {/* Rank & Headshot */}
-              <div className="flex items-center gap-3">
-                <span className="text-gray-500 text-sm w-6 text-right">{index + 1}</span>
-                <div className="relative w-10 h-10 rounded-full overflow-hidden bg-gray-700 flex-shrink-0">
-                  <Image
-                    src={qb.headshot_url || `https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/${qb.espn_id}.png&w=350&h=254&cb=1`}
-                    alt={qb.name}
-                    fill
-                    className="object-cover object-top"
-                    unoptimized
-                  />
+          {sortedQBs.map((qb, index) => {
+            const onCooldown = isOnCooldown(qb.id);
+            const timeLeft = getCooldownTimeLeft(qb.id);
+
+            return (
+              <div
+                key={qb.id}
+                className={`grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_100px_180px] gap-3 sm:gap-4 px-4 py-3 items-center transition-colors ${
+                  recentVotes[qb.id] === 'more' ? 'bg-green-500/10' :
+                  recentVotes[qb.id] === 'less' ? 'bg-red-500/10' : ''
+                }`}
+              >
+                {/* Rank & Headshot */}
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-500 text-sm w-6 text-right">{index + 1}</span>
+                  <div className="relative w-10 h-10 rounded-full overflow-hidden bg-gray-700 flex-shrink-0">
+                    <Image
+                      src={qb.headshot_url || `https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/${qb.espn_id}.png&w=350&h=254&cb=1`}
+                      alt={qb.name}
+                      fill
+                      className="object-cover object-top"
+                      unoptimized
+                    />
+                  </div>
+                </div>
+
+                {/* Name & Team */}
+                <div className="min-w-0">
+                  <Link href={`/qb/${qb.id}`} className="hover:text-[var(--accent-blue)] transition-colors">
+                    <p className="font-semibold text-white truncate">{qb.name}</p>
+                  </Link>
+                  <p className="text-gray-500 text-sm">{qb.team}</p>
+                </div>
+
+                {/* Score - Hidden on mobile, shown inline with buttons */}
+                <div className="hidden sm:flex justify-center">
+                  <span className={`text-lg font-bold ${
+                    qb.trust_score >= 70 ? 'text-green-400' :
+                    qb.trust_score >= 50 ? 'text-yellow-400' :
+                    qb.trust_score >= 30 ? 'text-orange-400' :
+                    'text-red-400'
+                  }`}>
+                    {Math.round(qb.trust_score)}
+                  </span>
+                </div>
+
+                {/* Vote Buttons */}
+                <div className="flex items-center gap-2 justify-end sm:justify-center">
+                  {/* Mobile score */}
+                  <span className={`sm:hidden text-sm font-bold mr-2 ${
+                    qb.trust_score >= 70 ? 'text-green-400' :
+                    qb.trust_score >= 50 ? 'text-yellow-400' :
+                    qb.trust_score >= 30 ? 'text-orange-400' :
+                    'text-red-400'
+                  }`}>
+                    {Math.round(qb.trust_score)}
+                  </span>
+
+                  {onCooldown ? (
+                    <span className="text-gray-500 text-xs font-mono">
+                      {formatTime(timeLeft)}
+                    </span>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleVote(qb.id, 'less')}
+                        disabled={votingId === qb.id}
+                        className={`p-2 rounded-lg transition-all ${
+                          votingId === qb.id ? 'opacity-50 cursor-not-allowed' :
+                          'bg-red-500/20 hover:bg-red-500/40 text-red-400'
+                        }`}
+                        title="Trust Less"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleVote(qb.id, 'more')}
+                        disabled={votingId === qb.id}
+                        className={`p-2 rounded-lg transition-all ${
+                          votingId === qb.id ? 'opacity-50 cursor-not-allowed' :
+                          'bg-green-500/20 hover:bg-green-500/40 text-green-400'
+                        }`}
+                        title="Trust More"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                        </svg>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-
-              {/* Name & Team */}
-              <div className="min-w-0">
-                <Link href={`/qb/${qb.id}`} className="hover:text-[var(--accent-blue)] transition-colors">
-                  <p className="font-semibold text-white truncate">{qb.name}</p>
-                </Link>
-                <p className="text-gray-500 text-sm">{qb.team}</p>
-              </div>
-
-              {/* Score - Hidden on mobile, shown inline with buttons */}
-              <div className="hidden sm:flex justify-center">
-                <span className={`text-lg font-bold ${
-                  qb.trust_score >= 70 ? 'text-green-400' :
-                  qb.trust_score >= 50 ? 'text-yellow-400' :
-                  qb.trust_score >= 30 ? 'text-orange-400' :
-                  'text-red-400'
-                }`}>
-                  {Math.round(qb.trust_score)}
-                </span>
-              </div>
-
-              {/* Vote Buttons */}
-              <div className="flex items-center gap-2 justify-end sm:justify-center">
-                {/* Mobile score */}
-                <span className={`sm:hidden text-sm font-bold mr-2 ${
-                  qb.trust_score >= 70 ? 'text-green-400' :
-                  qb.trust_score >= 50 ? 'text-yellow-400' :
-                  qb.trust_score >= 30 ? 'text-orange-400' :
-                  'text-red-400'
-                }`}>
-                  {Math.round(qb.trust_score)}
-                </span>
-
-                <button
-                  onClick={() => handleVote(qb.id, 'less')}
-                  disabled={votingId === qb.id}
-                  className={`p-2 rounded-lg transition-all ${
-                    votingId === qb.id ? 'opacity-50 cursor-not-allowed' :
-                    'bg-red-500/20 hover:bg-red-500/40 text-red-400'
-                  }`}
-                  title="Trust Less"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => handleVote(qb.id, 'more')}
-                  disabled={votingId === qb.id}
-                  className={`p-2 rounded-lg transition-all ${
-                    votingId === qb.id ? 'opacity-50 cursor-not-allowed' :
-                    'bg-green-500/20 hover:bg-green-500/40 text-green-400'
-                  }`}
-                  title="Trust More"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
