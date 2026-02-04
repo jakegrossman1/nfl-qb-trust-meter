@@ -96,9 +96,6 @@ export default function TrustGauge({ score, size = 280, animated = true }: Trust
 
   const label = getScoreLabel(Math.round(displayScore));
 
-  // Scale factor for the SVG
-  const scale = size / 200;
-
   return (
     <div className="relative" style={{ width: size, height: size / 2 + 50 }}>
       <svg
