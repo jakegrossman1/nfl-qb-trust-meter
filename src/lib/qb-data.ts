@@ -29,7 +29,7 @@ export const startingQBs = [
   { name: "Kyler Murray", team: "Arizona Cardinals", espn_id: "3917315" },
   { name: "Lamar Jackson", team: "Baltimore Ravens", espn_id: "3916387" },
   { name: "Mac Jones", team: "San Francisco 49ers", espn_id: "4241464" },
-  { name: "Malik Willis", team: "Green Bay Packers", espn_id: "4362887" },
+  { name: "Malik Willis", team: "Green Bay Packers", espn_id: "4242512" },
   { name: "Marcus Mariota", team: "Washington Commanders", espn_id: "2576980" },
   { name: "Matthew Stafford", team: "Los Angeles Rams", espn_id: "12483" },
   { name: "Michael Penix Jr.", team: "Atlanta Falcons", espn_id: "4360423" },
