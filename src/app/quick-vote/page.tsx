@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -28,7 +28,8 @@ export default function QuickVotePage() {
   const [sortBy, setSortBy] = useState<SortOption>('score-desc');
   const [votingId, setVotingId] = useState<number | null>(null);
   const [recentVotes, setRecentVotes] = useState<Record<number, 'more' | 'less'>>({});
-  const [cooldowns, setCooldowns] = useState<Record<number, number>>({});
+  const [cooldownEnds, setCooldownEnds] = useState<Record<number, number>>({});
+  const [timesLeft, setTimesLeft] = useState<Record<number, number>>({});
 
   // Check localStorage for existing cooldowns on mount
   useEffect(() => {
@@ -45,29 +46,48 @@ export default function QuickVotePage() {
         }
       }
     }
-    setCooldowns(stored);
+    setCooldownEnds(stored);
   }, []);
 
-  // Update cooldown timers every second
+  // Update countdown timers - matches VoteButtons approach exactly
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCooldowns(prev => {
-        const updated = { ...prev };
-        let changed = false;
-        for (const qbId of Object.keys(updated)) {
-          const id = parseInt(qbId, 10);
-          if (updated[id] <= Date.now()) {
-            delete updated[id];
-            localStorage.removeItem(getCooldownKey(id));
-            changed = true;
-          }
-        }
-        return changed ? updated : prev;
-      });
-    }, 1000);
+    const activeCooldowns = Object.entries(cooldownEnds).filter(
+      ([, endTime]) => endTime > Date.now()
+    );
 
+    if (activeCooldowns.length === 0) {
+      setTimesLeft({});
+      return;
+    }
+
+    const updateTimers = () => {
+      const newTimesLeft: Record<number, number> = {};
+      const newCooldownEnds: Record<number, number> = { ...cooldownEnds };
+      let changed = false;
+
+      for (const [qbIdStr, endTime] of Object.entries(cooldownEnds)) {
+        const qbId = parseInt(qbIdStr, 10);
+        const remaining = endTime - Date.now();
+
+        if (remaining <= 0) {
+          localStorage.removeItem(getCooldownKey(qbId));
+          delete newCooldownEnds[qbId];
+          changed = true;
+        } else {
+          newTimesLeft[qbId] = Math.ceil(remaining / 1000);
+        }
+      }
+
+      setTimesLeft(newTimesLeft);
+      if (changed) {
+        setCooldownEnds(newCooldownEnds);
+      }
+    };
+
+    updateTimers();
+    const interval = setInterval(updateTimers, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [cooldownEnds]);
 
   useEffect(() => {
     const fetchQBs = async () => {
@@ -87,15 +107,6 @@ export default function QuickVotePage() {
     fetchQBs();
   }, []);
 
-  const isOnCooldown = useCallback((qbId: number): boolean => {
-    return cooldowns[qbId] !== undefined && cooldowns[qbId] > Date.now();
-  }, [cooldowns]);
-
-  const getCooldownTimeLeft = useCallback((qbId: number): number => {
-    if (!cooldowns[qbId]) return 0;
-    return Math.max(0, Math.ceil((cooldowns[qbId] - Date.now()) / 1000));
-  }, [cooldowns]);
-
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -103,7 +114,7 @@ export default function QuickVotePage() {
   };
 
   const handleVote = async (qbId: number, direction: 'more' | 'less') => {
-    if (isOnCooldown(qbId)) return;
+    if (cooldownEnds[qbId] && cooldownEnds[qbId] > Date.now()) return;
 
     setVotingId(qbId);
 
@@ -126,7 +137,7 @@ export default function QuickVotePage() {
 
       // Set cooldown
       const endTime = Date.now() + COOLDOWN_MS;
-      setCooldowns(prev => ({ ...prev, [qbId]: endTime }));
+      setCooldownEnds(prev => ({ ...prev, [qbId]: endTime }));
       localStorage.setItem(getCooldownKey(qbId), endTime.toString());
 
       setRecentVotes(prev => ({ ...prev, [qbId]: direction }));
@@ -230,8 +241,8 @@ export default function QuickVotePage() {
         {/* QB Rows */}
         <div className="divide-y divide-[var(--card-border)]">
           {sortedQBs.map((qb, index) => {
-            const onCooldown = isOnCooldown(qb.id);
-            const timeLeft = getCooldownTimeLeft(qb.id);
+            const timeLeft = timesLeft[qb.id] || 0;
+            const onCooldown = timeLeft > 0;
 
             return (
               <div
