@@ -16,6 +16,45 @@ function getScoreLabel(score: number): string {
   return 'Risky/Bust';
 }
 
+// Interpolate between two hex colors
+function interpolateColor(color1: string, color2: string, factor: number): string {
+  const r1 = parseInt(color1.slice(1, 3), 16);
+  const g1 = parseInt(color1.slice(3, 5), 16);
+  const b1 = parseInt(color1.slice(5, 7), 16);
+  const r2 = parseInt(color2.slice(1, 3), 16);
+  const g2 = parseInt(color2.slice(3, 5), 16);
+  const b2 = parseInt(color2.slice(5, 7), 16);
+
+  const r = Math.round(r1 + (r2 - r1) * factor);
+  const g = Math.round(g1 + (g2 - g1) * factor);
+  const b = Math.round(b1 + (b2 - b1) * factor);
+
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+// Get interpolated color based on score (0-100)
+function getInterpolatedColor(score: number): string {
+  const colors = [
+    { score: 0, color: '#991b1b' },   // Dark red
+    { score: 20, color: '#dc2626' },  // Red
+    { score: 40, color: '#f97316' },  // Orange
+    { score: 60, color: '#eab308' },  // Yellow
+    { score: 80, color: '#22c55e' },  // Green
+    { score: 100, color: '#22c55e' }, // Green
+  ];
+
+  // Find the two colors to interpolate between
+  for (let i = 0; i < colors.length - 1; i++) {
+    if (score >= colors[i].score && score <= colors[i + 1].score) {
+      const range = colors[i + 1].score - colors[i].score;
+      const factor = (score - colors[i].score) / range;
+      return interpolateColor(colors[i].color, colors[i + 1].color, factor);
+    }
+  }
+
+  return colors[colors.length - 1].color;
+}
+
 export default function TrustGauge({ score, size = 280, animated = true }: TrustGaugeProps) {
   const [displayScore, setDisplayScore] = useState(animated ? 0 : score);
 
@@ -94,6 +133,7 @@ export default function TrustGauge({ score, size = 280, animated = true }: Trust
   ];
 
   const label = getScoreLabel(Math.round(displayScore));
+  const scoreColor = getInterpolatedColor(Math.round(displayScore));
 
   return (
     <div className="relative" style={{ width: size, height: size / 2 + 50 }}>
@@ -190,13 +230,7 @@ export default function TrustGauge({ score, size = 280, animated = true }: Trust
       {/* Score display below the gauge */}
       <div className="absolute left-1/2 transform -translate-x-1/2" style={{ bottom: 0 }}>
         <div className="text-center">
-          <span className={`text-4xl font-bold ${
-            displayScore >= 80 ? 'text-green-400' :
-            displayScore >= 60 ? 'text-yellow-400' :
-            displayScore >= 40 ? 'text-orange-400' :
-            displayScore >= 20 ? 'text-red-500' :
-            'text-red-700'
-          }`}>
+          <span className="text-4xl font-bold" style={{ color: scoreColor }}>
             {Math.round(displayScore)}
           </span>
           <p className="text-gray-400 text-sm mt-1">{label}</p>
