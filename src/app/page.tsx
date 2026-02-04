@@ -13,6 +13,10 @@ interface Quarterback {
   trust_score: number;
 }
 
+interface Mover extends Quarterback {
+  movement: number;
+}
+
 type SortOption = 'score-desc' | 'score-asc' | 'name' | 'team';
 
 export default function Home() {
@@ -21,6 +25,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('score-desc');
   const [searchQuery, setSearchQuery] = useState('');
+  const [risers, setRisers] = useState<Mover[]>([]);
+  const [fallers, setFallers] = useState<Mover[]>([]);
 
   useEffect(() => {
     const fetchQBs = async () => {
@@ -37,7 +43,21 @@ export default function Home() {
       }
     };
 
+    const fetchMovers = async () => {
+      try {
+        const response = await fetch('/api/qbs/movers');
+        if (response.ok) {
+          const data = await response.json();
+          setRisers(data.risers || []);
+          setFallers(data.fallers || []);
+        }
+      } catch (err) {
+        console.error('Failed to load movers:', err);
+      }
+    };
+
     fetchQBs();
+    fetchMovers();
   }, []);
 
   const sortedAndFilteredQBs = quarterbacks
@@ -101,22 +121,62 @@ export default function Home() {
 
   return (
     <div className="space-y-8">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Stats Cards and Movers */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {topQB && (
-          <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+          <Link href={`/qb/${topQB.id}`} className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4 hover:border-green-500/50 transition-colors">
             <p className="text-gray-400 text-sm">Most Trusted</p>
             <p className="text-lg font-bold text-green-400">{topQB.name}</p>
             <p className="text-sm text-gray-500">{Math.round(topQB.trust_score)} points</p>
-          </div>
+          </Link>
         )}
         {bottomQB && (
-          <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+          <Link href={`/qb/${bottomQB.id}`} className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4 hover:border-red-500/50 transition-colors">
             <p className="text-gray-400 text-sm">Least Trusted</p>
             <p className="text-lg font-bold text-red-400">{bottomQB.name}</p>
             <p className="text-sm text-gray-500">{Math.round(bottomQB.trust_score)} points</p>
-          </div>
+          </Link>
         )}
+
+        {/* Risers Card */}
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+          <p className="text-green-400 text-sm font-semibold flex items-center gap-1">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+            </svg>
+            Risers (7 days)
+          </p>
+          <div className="mt-2 space-y-1">
+            {risers.length > 0 ? risers.map((qb) => (
+              <Link key={qb.id} href={`/qb/${qb.id}`} className="flex items-center justify-between text-sm hover:text-green-400 transition-colors">
+                <span className="text-white truncate">{qb.name}</span>
+                <span className="text-green-400 font-medium ml-2">+{qb.movement.toFixed(1)}</span>
+              </Link>
+            )) : (
+              <p className="text-gray-500 text-sm">No risers</p>
+            )}
+          </div>
+        </div>
+
+        {/* Fallers Card */}
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+          <p className="text-red-400 text-sm font-semibold flex items-center gap-1">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+            Fallers (7 days)
+          </p>
+          <div className="mt-2 space-y-1">
+            {fallers.length > 0 ? fallers.map((qb) => (
+              <Link key={qb.id} href={`/qb/${qb.id}`} className="flex items-center justify-between text-sm hover:text-red-400 transition-colors">
+                <span className="text-white truncate">{qb.name}</span>
+                <span className="text-red-400 font-medium ml-2">{qb.movement.toFixed(1)}</span>
+              </Link>
+            )) : (
+              <p className="text-gray-500 text-sm">No fallers</p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Search and Sort Controls */}

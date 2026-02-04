@@ -306,4 +306,41 @@ export async function getVoteStats(qbId: number): Promise<{ total: number; recen
   };
 }
 
+// Get QBs with 7-day score movement
+export async function getQuarterbacksWithMovement(): Promise<(Quarterback & { movement: number })[]> {
+  await ensureInitialized();
+  const db = getClient();
+
+  // Get all QBs with current scores
+  const quarterbacks = await getAllQuarterbacks();
+
+  // Get snapshots from ~7 days ago for each QB
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const targetDate = sevenDaysAgo.toISOString().split('T')[0];
+
+  const snapshotsResult = await db.execute({
+    sql: `SELECT qb_id, score FROM trust_snapshots
+          WHERE snapshot_date <= ?
+          GROUP BY qb_id
+          HAVING snapshot_date = MAX(snapshot_date)`,
+    args: [targetDate],
+  });
+  const oldSnapshots = snapshotsResult.rows as unknown as { qb_id: number; score: number }[];
+
+  // Create a map of old scores
+  const oldScoreMap = new Map<number, number>();
+  for (const snapshot of oldSnapshots) {
+    oldScoreMap.set(snapshot.qb_id, snapshot.score);
+  }
+
+  // Calculate movement for each QB
+  return quarterbacks.map(qb => ({
+    ...qb,
+    movement: oldScoreMap.has(qb.id)
+      ? Math.round((qb.trust_score - oldScoreMap.get(qb.id)!) * 10) / 10
+      : 0,
+  }));
+}
+
 export default getClient;
