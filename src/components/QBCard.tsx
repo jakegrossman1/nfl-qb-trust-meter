@@ -80,7 +80,7 @@ export default function QBCard({ id, name, team, espn_id, headshot_url, trust_sc
           </div>
           <div className="text-right">
             <span className={`text-sm font-medium ${scoreColor}`}>{scoreLabel}</span>
-            <p className="text-xs text-gray-500">Trust Level</p>
+            <p className="text-xs text-gray-500">Trust Score</p>
           </div>
         </div>
       </div>

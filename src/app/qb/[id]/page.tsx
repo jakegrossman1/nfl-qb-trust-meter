@@ -34,6 +34,7 @@ export default function QBDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [scoreUpdated, setScoreUpdated] = useState(false);
+  const [voteFlash, setVoteFlash] = useState<'more' | 'less' | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -83,6 +84,10 @@ export default function QBDetailPage() {
     // Trigger score animation
     setScoreUpdated(true);
     setTimeout(() => setScoreUpdated(false), 300);
+
+    // Trigger vote flash on card
+    setVoteFlash(direction);
+    setTimeout(() => setVoteFlash(null), 500);
 
     // Refresh history
     const historyResponse = await fetch(`/api/qbs/${qb.id}/history?days=30`);
@@ -146,7 +151,10 @@ export default function QBDetailPage() {
       </Link>
 
       {/* QB Header */}
-      <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6 md:p-8">
+      <div className={`bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6 md:p-8 transition-colors duration-300 ${
+        voteFlash === 'more' ? 'bg-green-500/20 border-green-500/50' :
+        voteFlash === 'less' ? 'bg-red-500/20 border-red-500/50' : ''
+      }`}>
         <div className="flex flex-col md:flex-row items-center gap-8">
           {/* Headshot */}
           <div className="relative w-40 h-40 md:w-48 md:h-48 rounded-full overflow-hidden bg-gray-700 flex-shrink-0 ring-4 ring-[var(--card-border)]">
