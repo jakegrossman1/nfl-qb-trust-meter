@@ -60,10 +60,10 @@ export async function GET(request: NextRequest) {
       const existing = currentQbMap.get(qb.name);
 
       if (existing) {
-        // Update QB
+        // Update QB - also set headshot_url to NULL so it uses espn_id
         try {
           await client.execute({
-            sql: 'UPDATE quarterbacks SET team = ?, espn_id = ?, is_active = 1 WHERE id = ?',
+            sql: 'UPDATE quarterbacks SET team = ?, espn_id = ?, headshot_url = NULL, is_active = 1 WHERE id = ?',
             args: [qb.team, qb.espn_id, existing.id],
           });
           results.updated.push(`${qb.name}: team=${qb.team}, espn_id=${qb.espn_id}`);
