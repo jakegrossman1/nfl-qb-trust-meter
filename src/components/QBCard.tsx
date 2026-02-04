@@ -58,6 +58,16 @@ export default function QBCard({ id, name, team, espn_id, headshot_url, trust_sc
           <div className="flex items-center gap-2">
             <div className="relative w-12 h-12">
               <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
+                <defs>
+                  <linearGradient id={`gradient-${id}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#991b1b" />
+                    <stop offset="20%" stopColor="#dc2626" />
+                    <stop offset="40%" stopColor="#f97316" />
+                    <stop offset="60%" stopColor="#eab308" />
+                    <stop offset="80%" stopColor="#22c55e" />
+                    <stop offset="100%" stopColor="#22c55e" />
+                  </linearGradient>
+                </defs>
                 <path
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   fill="none"
@@ -67,7 +77,7 @@ export default function QBCard({ id, name, team, espn_id, headshot_url, trust_sc
                 <path
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   fill="none"
-                  stroke={score >= 80 ? '#22c55e' : score >= 60 ? '#eab308' : score >= 40 ? '#f97316' : score >= 20 ? '#dc2626' : '#991b1b'}
+                  stroke={`url(#gradient-${id})`}
                   strokeWidth="3"
                   strokeDasharray={`${score}, 100`}
                   strokeLinecap="round"
