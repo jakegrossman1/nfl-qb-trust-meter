@@ -7,9 +7,10 @@ export const dynamic = 'force-dynamic';
 /**
  * Admin endpoint to sync QB data from qb-data.ts to the database.
  * This will:
- * 1. Update existing QBs (by name) with new team/espn_id
- * 2. Add new QBs that don't exist
- * 3. Deactivate QBs not in the list
+ * 1. Clear all ESPN IDs first to avoid conflicts
+ * 2. Update existing QBs (by name) with new team/espn_id
+ * 3. Add new QBs that don't exist
+ * 4. Deactivate QBs not in the list
  *
  * Call this once after updating qb-data.ts to fix the database.
  * GET /api/admin/sync-qbs?confirm=true
@@ -39,14 +40,16 @@ export async function GET(request: NextRequest) {
       errors: [] as string[],
     };
 
+    // Step 1: Clear all ESPN IDs to avoid UNIQUE constraint conflicts
+    await client.execute('UPDATE quarterbacks SET espn_id = NULL');
+
     // Get all current QBs
-    const currentQbs = await client.execute('SELECT id, name, team, espn_id FROM quarterbacks');
-    const currentQbMap = new Map<string, { id: number; team: string; espn_id: string }>();
+    const currentQbs = await client.execute('SELECT id, name, team FROM quarterbacks');
+    const currentQbMap = new Map<string, { id: number; team: string }>();
     for (const row of currentQbs.rows) {
       currentQbMap.set(row.name as string, {
         id: row.id as number,
         team: row.team as string,
-        espn_id: row.espn_id as string,
       });
     }
 
@@ -58,17 +61,15 @@ export async function GET(request: NextRequest) {
       const existing = currentQbMap.get(qb.name);
 
       if (existing) {
-        // Update if team or espn_id changed
-        if (existing.team !== qb.team || existing.espn_id !== qb.espn_id) {
-          try {
-            await client.execute({
-              sql: 'UPDATE quarterbacks SET team = ?, espn_id = ?, is_active = 1 WHERE id = ?',
-              args: [qb.team, qb.espn_id, existing.id],
-            });
-            results.updated.push(`${qb.name}: ${existing.team}→${qb.team}, ${existing.espn_id}→${qb.espn_id}`);
-          } catch (err) {
-            results.errors.push(`Failed to update ${qb.name}: ${err}`);
-          }
+        // Update QB
+        try {
+          await client.execute({
+            sql: 'UPDATE quarterbacks SET team = ?, espn_id = ?, is_active = 1 WHERE id = ?',
+            args: [qb.team, qb.espn_id, existing.id],
+          });
+          results.updated.push(`${qb.name}: team=${qb.team}, espn_id=${qb.espn_id}`);
+        } catch (err) {
+          results.errors.push(`Failed to update ${qb.name}: ${err}`);
         }
       } else {
         // Add new QB
