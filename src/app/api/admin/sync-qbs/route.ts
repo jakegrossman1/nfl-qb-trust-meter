@@ -85,7 +85,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Deactivate QBs not in the list
-    for (const [name, data] of currentQbMap) {
+    const qbEntries = Array.from(currentQbMap.entries());
+    for (const [name, data] of qbEntries) {
       if (!processedNames.has(name)) {
         try {
           await client.execute({
