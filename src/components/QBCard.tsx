@@ -20,6 +20,11 @@ function getScoreLabel(score: number): string {
   return 'Risky/Bust';
 }
 
+// Convert name to URL slug
+function nameToSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
 // Interpolate between two hex colors
 function interpolateColor(color1: string, color2: string, factor: number): string {
   const r1 = parseInt(color1.slice(1, 3), 16);
@@ -63,12 +68,13 @@ export default function QBCard({ id, name, team, espn_id, headshot_url, trust_sc
   const score = Math.round(trust_score);
   const scoreLabel = getScoreLabel(score);
   const barColor = getInterpolatedColor(score);
+  const slug = nameToSlug(name);
 
   // Use headshot_url from DB, fallback to ESPN CDN
   const imageUrl = headshot_url || `https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/${espn_id}.png&w=96&h=70&cb=1`;
 
   return (
-    <Link href={`/qb/${id}`}>
+    <Link href={`/qb/${slug}`}>
       <div className="qb-card bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4 cursor-pointer">
         <div className="flex items-center gap-4">
           <div className="relative w-16 h-16 rounded-full overflow-hidden bg-gray-700 flex-shrink-0">

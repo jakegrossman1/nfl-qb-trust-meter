@@ -19,6 +19,11 @@ interface Mover extends Quarterback {
 
 type SortOption = 'score-desc' | 'score-asc' | 'name' | 'team';
 
+// Convert name to URL slug
+function nameToSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
 export default function Home() {
   const [quarterbacks, setQuarterbacks] = useState<Quarterback[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,14 +129,14 @@ export default function Home() {
       {/* Stats Cards and Movers */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {topQB && (
-          <Link href={`/qb/${topQB.id}`} className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4 hover:border-green-500/50 transition-colors">
+          <Link href={`/qb/${nameToSlug(topQB.name)}`} className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4 hover:border-green-500/50 transition-colors">
             <p className="text-gray-400 text-sm">Most Trusted</p>
             <p className="text-lg font-bold text-green-400">{topQB.name}</p>
             <p className="text-sm text-gray-500">{Math.round(topQB.trust_score)} points</p>
           </Link>
         )}
         {bottomQB && (
-          <Link href={`/qb/${bottomQB.id}`} className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4 hover:border-red-500/50 transition-colors">
+          <Link href={`/qb/${nameToSlug(bottomQB.name)}`} className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4 hover:border-red-500/50 transition-colors">
             <p className="text-gray-400 text-sm">Least Trusted</p>
             <p className="text-lg font-bold text-red-400">{bottomQB.name}</p>
             <p className="text-sm text-gray-500">{Math.round(bottomQB.trust_score)} points</p>
@@ -148,7 +153,7 @@ export default function Home() {
           </p>
           <div className="mt-2 space-y-1">
             {risers.length > 0 ? risers.map((qb) => (
-              <Link key={qb.id} href={`/qb/${qb.id}`} className="flex items-center justify-between text-sm hover:text-green-400 transition-colors">
+              <Link key={qb.id} href={`/qb/${nameToSlug(qb.name)}`} className="flex items-center justify-between text-sm hover:text-green-400 transition-colors">
                 <span className="text-white truncate">{qb.name}</span>
                 <span className="text-green-400 font-medium ml-2">+{qb.movement.toFixed(1)}</span>
               </Link>
@@ -168,7 +173,7 @@ export default function Home() {
           </p>
           <div className="mt-2 space-y-1">
             {fallers.length > 0 ? fallers.map((qb) => (
-              <Link key={qb.id} href={`/qb/${qb.id}`} className="flex items-center justify-between text-sm hover:text-red-400 transition-colors">
+              <Link key={qb.id} href={`/qb/${nameToSlug(qb.name)}`} className="flex items-center justify-between text-sm hover:text-red-400 transition-colors">
                 <span className="text-white truncate">{qb.name}</span>
                 <span className="text-red-400 font-medium ml-2">{qb.movement.toFixed(1)}</span>
               </Link>

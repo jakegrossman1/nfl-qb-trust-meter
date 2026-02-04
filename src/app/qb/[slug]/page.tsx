@@ -27,7 +27,7 @@ interface TrustSnapshot {
 
 export default function QBDetailPage() {
   const params = useParams();
-  const id = params?.id as string;
+  const slug = params?.slug as string;
 
   const [qb, setQb] = useState<Quarterback | null>(null);
   const [history, setHistory] = useState<TrustSnapshot[]>([]);
@@ -37,24 +37,25 @@ export default function QBDetailPage() {
   const [voteFlash, setVoteFlash] = useState<'more' | 'less' | null>(null);
 
   useEffect(() => {
-    if (!id) return;
+    if (!slug) return;
 
     const fetchData = async () => {
       try {
-        const [qbResponse, historyResponse] = await Promise.all([
-          fetch(`/api/qbs/${id}`),
-          fetch(`/api/qbs/${id}/history?days=30`),
-        ]);
+        const qbResponse = await fetch(`/api/qbs/by-slug/${slug}`);
 
         if (!qbResponse.ok) {
           throw new Error('Quarterback not found');
         }
 
         const qbData = await qbResponse.json();
-        const historyData = await historyResponse.json();
-
         setQb(qbData);
-        setHistory(historyData);
+
+        // Fetch history using QB id
+        const historyResponse = await fetch(`/api/qbs/${qbData.id}/history?days=30`);
+        if (historyResponse.ok) {
+          const historyData = await historyResponse.json();
+          setHistory(historyData);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');
       } finally {
@@ -63,7 +64,7 @@ export default function QBDetailPage() {
     };
 
     fetchData();
-  }, [id]);
+  }, [slug]);
 
   const handleVote = async (direction: 'more' | 'less') => {
     if (!qb) return;

@@ -196,6 +196,11 @@ export async function getAllQuarterbacks(): Promise<Quarterback[]> {
   return quarterbacks;
 }
 
+// Convert name to URL slug (e.g., "Patrick Mahomes" -> "patrick-mahomes")
+export function nameToSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
 // Get quarterback by ID with computed trust score and stats
 export async function getQuarterbackById(id: number): Promise<QuarterbackWithStats | undefined> {
   await ensureInitialized();
@@ -216,6 +221,35 @@ export async function getQuarterbackById(id: number): Promise<QuarterbackWithSta
   const votesResult = await db.execute({
     sql: 'SELECT direction, created_at FROM votes WHERE qb_id = ?',
     args: [id],
+  });
+  const votes = votesResult.rows as unknown as { direction: string; created_at: string }[];
+
+  return {
+    ...qb,
+    trust_score: calculateTrustScore(votes),
+    recent_vote_count: countRecentVotes(votes),
+  };
+}
+
+// Get quarterback by slug with computed trust score and stats
+export async function getQuarterbackBySlug(slug: string): Promise<QuarterbackWithStats | undefined> {
+  await ensureInitialized();
+  const db = getClient();
+
+  // Get all QBs and find matching slug
+  const qbResult = await db.execute('SELECT * FROM quarterbacks WHERE is_active = 1');
+  const qbs = qbResult.rows as unknown as QuarterbackBase[];
+
+  const qb = qbs.find(q => nameToSlug(q.name) === slug);
+
+  if (!qb) {
+    return undefined;
+  }
+
+  // Get votes for this QB
+  const votesResult = await db.execute({
+    sql: 'SELECT direction, created_at FROM votes WHERE qb_id = ?',
+    args: [qb.id],
   });
   const votes = votesResult.rows as unknown as { direction: string; created_at: string }[];
 

@@ -21,6 +21,11 @@ function getCooldownKey(qbId: number): string {
   return `qb-vote-cooldown-${qbId}`;
 }
 
+// Convert name to URL slug
+function nameToSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
 export default function QuickVotePage() {
   const [quarterbacks, setQuarterbacks] = useState<Quarterback[]>([]);
   const [loading, setLoading] = useState(true);
@@ -268,7 +273,7 @@ export default function QuickVotePage() {
 
                 {/* Name & Team */}
                 <div className="min-w-0">
-                  <Link href={`/qb/${qb.id}`} className="hover:text-[var(--accent-blue)] transition-colors">
+                  <Link href={`/qb/${nameToSlug(qb.name)}`} className="hover:text-[var(--accent-blue)] transition-colors">
                     <p className="font-semibold text-white truncate">{qb.name}</p>
                   </Link>
                   <p className="text-gray-500 text-sm">{qb.team}</p>
